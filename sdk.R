@@ -4,7 +4,7 @@
 dotenv::load_dot_env()
 
 # This loads and installs the MoveApps R SDK
-remotes::install_github("movestore/moveapps-sdk-r-package")
+remotes::install_github("movestore/moveapps-sdk-r-package@shiny_settings")
 moveapps::logger.init()
 moveapps::clearRecentOutput()
 

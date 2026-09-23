@@ -1,66 +1,41 @@
 {
   "version": "1.2",
-  "settings": [
-    {
-      "id": "auxiliary-file-a",
-      "name": "Personalization",
-      "description": "You can personalize the app by providing a file",
-      "type": "USER_FILE"
-    }
-  ],
+  "settings": [],
   "dependencies": {
     "R": [
       {
+        "name": "move2"
+      },
+      {
         "name": "shiny"
-      },
-      {
-        "name": "sf"
-      },
-      {
-       "remotes": "install_git('https://gitlab.com/bartk/move2.git')"
       }
     ]
   },
-  "providedAppFiles": [
-    {
-      "settingId": "auxiliary-file-a",
-      "from": "data/auxiliary/user-files/provided-app-files/auxiliary-file-a/sample.txt"
-    }
-  ],
   "license": {
     "key": "MIT"
   },
   "language": "eng",
   "keywords": [
-    "example",
-    "template"
+    "remove attributes",
+    "remove columns",
+    "select attibutes",
+    "select columns",
+    "event data",
+    "track data"
   ],
   "people": [
     {
-      "firstName": "Charles",
-      "middleInitials": null,
-      "lastName": "Darwin",
-      "email": "creator@example.com",
+      "firstName": "Anne",
+      "middleInitials": "K.",
+      "lastName": "Scharf",
+      "email": null,
       "roles": [
         "author",
         "creator"
       ],
       "orcid": null,
-      "affiliation": null,
-      "affiliationRor": null
-    }
-  ],
-  "funding": [
-    {
-      "name": "funder name",
-      "comment": "grant for App"
-    }
-  ],
-  "references": [
-    {
-      "type": "IsDescribedBy",
-      "note": "Darwin, C. 1900. The creation. Journal XY. 1-2",
-      "url": "https://anylink.xyz"
+      "affiliation": "Max Planck Institute of Animal Behavior",
+      "affiliationRor": "https://ror.org/026stee22"
     }
   ]
 }

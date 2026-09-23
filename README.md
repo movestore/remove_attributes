@@ -1,80 +1,67 @@
-# Name of App *(Give your app a short and informative title. Please adhere to our convention of Title Case without hyphens (e.g. My New App))*
+# Remove Attributes
 
 MoveApps
 
-Github repository: *github.com/yourAccount/Name-of-App* *(provide the link to the repository where the code of the App can be found)*
+Github repository: github.com/movestore/remove_attributes
 
 ## Description
-*Enter here the short description of the App that might also be used when filling out the description during App submission to MoveApps. This text is directly presented to Users that look through the list of Apps when compiling Workflows.*
+Select which attributes of the event data and of the track data to keep, and remove all others from the data set. The selection can be stored, so that it is also applied in automatic Workflow runs.
 
 ## Documentation
-*Enter here a detailed description of your App. What is it intended to be used for. Which steps of analyses are performed and how. Please be explicit about any detail that is important for use and understanding of the App and its outcomes. You might also refer to the sections below.*
+The App shows all attributes that are contained in the input data and lets the User choose which of them to keep. Attributes that are not needed for the subsequent Apps of a Workflow can thereby be removed, which makes the data set smaller and the overview of the attributes easier.
+
+`Event attributes` lists the columns of the event (location) data, `Track attributes` lists the columns of the track data.
+
+The attributes that are mandatory for the data to still be useful are listed greyed out at the top of each column and cannot be unticked: the timestamp column, the geometry column of the event data, and the track ID column.
+
+Clicking `Apply` removes all unticked attributes from the event data and from the track data, and the reduced data set is passed on to the next App. As long as `Apply` has not been clicked, the input data are passed on unchanged. The line below the button states how many attributes are removed from the output data.
+
 
 ### Application scope
 #### Generality of App usability
-*State here if the App was developed for a specific species, taxon or taxonomic group, or to answer a specific question. How might it influence the scope and utility of the App. This information will help the user to understand why the App might be producing no or odd results.*
-
-*Examples:*
-
-This App was developed using data of birds. 
-
-This App was developed using data of red deer. 
-
-This App was developed for any taxonomic group. 
-
-This App was developed to identify kill sites, but can probably be used to identify any kind of location clusters like nests, dens or drinking holes.
+This App was developed for any taxonomic group.
 
 #### Required data properties
-*State here the required and/or optimal data properties for this App to perform properly.*
-
-*Examples:*
-
-This App is only applicable to data that reflect range resident behavior. 
-
-The data should have a fix rate of at least 1 location per 30 minutes. 
-
-The App should work for any kind of (location) data.
+The App should work for any kind of (location) data. 
 
 ### Input type
-*Indicate which type of input data the App requires.*
-
-*Example*: `move2::move2_loc`
+`move2::move2_loc`
 
 ### Output type
-*Indicate which type of output data the App produces to be passed on to subsequent Apps.*
-
-*Example:* `move2::move2_loc`
+`move2::move2_loc`
 
 ### Artefacts
-*If the App creates artefacts (e.g. csv, pdf, jpeg, shapefiles, etc), please list them here and describe each.*
+None.
 
-*Example:* `rest_overview.csv`: csv-file with Table of all rest site properties
+### Settings
+This App has no settings in the Settings menu of MoveApps, as the attributes to keep depend on the input data and are therefore selected in the user interface of the App:
 
-### Settings 
-*Please list and define all settings that the App requires to be set by the App user, if necessary including their unit. Please state each of the settings that the user will encounter in the UI of the shiny app.*
+`Event attributes` (`eventAttrs`): checkboxes of all attributes of the event data. Ticked attributes are kept, unticked attributes are removed. The timestamp, track ID and geometry columns are greyed out and always kept. Default: all attributes ticked.
 
-*Example:* `Radius of resting site` (radius): Defined radius the animal has to stay in for a given duration of time for it to be considered resting site. Unit: `metres`.
+`Track attributes` (`trackAttrs`): checkboxes of all attributes of the track data. Ticked attributes are kept, unticked attributes are removed. The track ID column is greyed out and always kept. Default: all attributes ticked.
 
-*Always include the "Store settings" setting as it will appear automatically in all shiny apps*
-`Store settings`: click to store the current settings of the App for future Workflow runs. 
+`Select all` / `Unselect all` (`eventAll`/`eventNone` and `trackAll`/`trackNone`): tick or untick all attributes of the respective column at once.
+
+`Apply` (`apply`): removes all unticked attributes from the output data. Default: not clicked, i.e. the data are passed on unchanged.
+
+`Store settings`: stores the ticked attributes of both columns and whether `Apply` has been clicked, for the following runs of the Workflow.
 
 ### Changes in output data
-*Specify here how and if the App modifies the input data. Describe clearly what e.g. each additional column means.*
+The App removes from the event data and from the track data all attributes that are not ticked. No attributes are added and no values are modified: the number of locations, the number of tracks, the timestamps, the track IDs and the geometries remain unchanged. If `Apply` is not clicked, and no settings with a clicked `Apply` are stored, the input data remain unchanged.
 
-*Examples:*
+### Errors and null handling
+**Setting `Apply`:** If `Apply` is not clicked, no attribute is removed and the input data are passed on unchanged, also if attributes have been unticked. The unticked attributes are only removed when `Apply` is clicked.
 
-The App adds to the input data the columns `Max_dist` and `Avg_dist`. They contain the maximum distance to the provided focal location and the average distance to it over all locations. 
+**Setting `Store settings`:** The stored settings consist of the names of the ticked attributes and of the number of clicks on `Apply`. If the settings are stored without having clicked `Apply`, automatic Workflow runs pass the data on unchanged; to make automatic runs remove the attributes, click `Apply` before `Store settings`. As the names of the ticked attributes are stored, attributes that are not present in the data at the time the settings were stored are removed in later runs, e.g. when the Workflow is run on a study with additional attributes. To keep such new attributes, open the App, tick them, click `Apply` and store the settings again.
 
-The App filterers the input data as selected by the user. 
+**Common error:** If a subsequent App of the Workflow stops with a message about a missing column, an attribute was removed that this App requires. Open the user interface, tick the attribute again, click `Apply` and store the settings.
 
-The output data is the outcome of the model applied to the input data. 
+### Technical details
+- The App is based on `move2`, the mandatory columns are identified with `move2::mt_time_column()` and `move2::mt_track_id_column()`, and with the geometry column of the underlying `sf` object.
+- The attributes of the event data are removed by subsetting the columns of the `move2` object, the attributes of the track data by subsetting the table returned by `move2::mt_track_data()` and attaching it again with `move2::mt_set_track_data()`.
+- The data are processed as a whole, not per track, and the attribute values, the coordinate reference system, the units and the time zone of the input data are not touched.
+- The selection is stored with the Shiny bookmarking mechanism of MoveApps (`Store settings`). Stored are the ticked attributes of both checkbox groups and the click count of `Apply`. When the App starts, the stored selection is restored and, if `Apply` had been clicked, applied.
+- Only the names of the attributes are handled, so runtime and memory do not depend noticeably on the number of locations.
 
-The input data remains unchanged.
-
-### Most common errors
-*Please describe shortly what most common errors of the App can be, how they occur and best ways of solving them.*
-
-### Null or error handling
-*Please indicate for each setting as well as the input data which behaviour the App is supposed to show in case of errors or NULL values/input. Please also add notes of possible errors that can happen if settings/parameters are improperly set and any other important information that you find the user should be aware of.*
-
-*Example:* **Setting `radius`:** If no radius AND no duration are given, the input data set is returned with a warning. If no radius is given (NULL), but a duration is defined then a default radius of 1000m = 1km is set. 
+### References
+None.
