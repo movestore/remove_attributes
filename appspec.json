@@ -4,6 +4,9 @@
   "dependencies": {
     "R": [
       {
+        "name": "dplyr"
+      },
+      {
         "name": "move2"
       },
       {
