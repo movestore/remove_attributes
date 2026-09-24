@@ -24,13 +24,11 @@ shinyModuleUserInterface <- function(id, label) {
     )))),
     titlePanel("Remove Attributes"),
     p("Untick the attributes that shall be removed from the data. Attributes that are greyed out are",
-      "mandatory for a move2 object (timestamp, track ID and geometry) and cannot be removed.",
-      "Click", strong("Apply"), "to remove the unticked attributes from the output data."),
+      "mandatory and cannot be removed."),
     p(class = "ra-hint",
-      "To keep the selection for future runs of the workflow, click", strong("Apply"),
-      "first and then", strong("Store settings"), "(top right). Settings that are stored before",
-      strong("Apply"), "has been clicked leave the data unchanged in automatic workflow runs."),
-    actionButton(inputId = ns("apply"), label = "Apply", class = "btn-primary"),
+      "Click", strong("Store settings"), "(top right) to remove the unticked attributes from the data.",
+      "The selection is stored at the same time, so it is applied again in the following runs of the",
+      "workflow, also in automatic ones."),
     tags$div(style = "margin: 1em 0;", textOutput(ns("status"))),
     uiOutput(ns("attributeColumns"))
   )
@@ -44,6 +42,8 @@ shinyModule <- function(input, output, session, data) {
   ## --- attribute names ------------------------------------------------------
   timeCol <- mt_time_column(data)
   trackIdCol <- mt_track_id_column(data)
+  # neither move2 nor sf exports an accessor for the name of the geometry
+  # column, the attribute is the documented way to get it
   geomCol <- attr(data, "sf_column")
   mandatoryEvent <- c(timeCol, trackIdCol, geomCol)
   mandatoryTrack <- trackIdCol
@@ -51,8 +51,8 @@ shinyModule <- function(input, output, session, data) {
   eventAttrs <- setdiff(names(data), mandatoryEvent)
   trackAttrs <- setdiff(names(mt_track_data(data)), mandatoryTrack)
 
-  # attributes to be removed, as chosen by the user and applied with "Apply"
-  # (also filled from the stored settings when the App is restarted)
+  # attributes to be removed, as chosen by the user and applied when the
+  # settings are stored (also filled from the stored settings on a restart)
   removedEvent <- reactiveVal(character(0))
   removedTrack <- reactiveVal(character(0))
 
@@ -114,10 +114,30 @@ shinyModule <- function(input, output, session, data) {
     updateCheckboxGroupInput(session = session, inputId = "trackAttrs", selected = character(0))
   })
 
-  ## --- apply -----------------------------------------------------------------
-  # unticked checkboxes give NULL, not character(0)
-  selectedEvent <- reactive(if (is.null(input$eventAttrs)) character(0) else input$eventAttrs)
-  selectedTrack <- reactive(if (is.null(input$trackAttrs)) character(0) else input$trackAttrs)
+  ## --- removal of the unticked attributes ------------------------------------
+  # A checkbox group reports NULL both when nothing is ticked and before the
+  # browser has reported it at all. The two are told apart by the name of the
+  # input: shiny keeps it once the browser has reported the input, also when the
+  # reported value is NULL. Not reported means the checkboxes still show their
+  # default, which is all attributes ticked. This is the case directly after a
+  # reload, e.g. the one that "Restore default settings" does.
+  checkboxesReported <- function() {
+    reported <- names(reactiveValuesToList(input))
+    c("eventAttrs", "trackAttrs") %in% reported
+  }
+
+  selectionOf <- function(id, attrs) {
+    if (!(id %in% names(reactiveValuesToList(input)))) {
+      attrs
+    } else if (is.null(input[[id]])) {
+      character(0)
+    } else {
+      input[[id]]
+    }
+  }
+
+  selectedEvent <- reactive(selectionOf("eventAttrs", eventAttrs))
+  selectedTrack <- reactive(selectionOf("trackAttrs", trackAttrs))
 
   applyRemoval <- function(selEvent, selTrack) {
     removedEvent(setdiff(eventAttrs, selEvent))
@@ -128,49 +148,63 @@ shinyModule <- function(input, output, session, data) {
                        paste(removedTrack(), collapse = ", ")))
   }
 
-  # Click count of "Apply" as restored from the stored settings. It is reported
-  # by the browser like a click, but at that moment the values of the checkboxes
-  # have not arrived yet (an empty checkbox group cannot be told apart from one
-  # with nothing ticked), which would remove every attribute. The removal for a
-  # restored click is done by onRestore(), which runs before this observer
-  # because the bookmark observers of shiny are created before this module.
-  restoredApplyValue <- NULL
-
-  observeEvent(input$apply, {
-    if (identical(as.integer(input$apply), as.integer(restoredApplyValue))) {
-      return()
-    }
-    applyRemoval(selectedEvent(), selectedTrack())
-  })
-
+  # dplyr::select() keeps the move2 object intact (time column, geometry and the
+  # track data), move2::select_track_data() does the same for the track data and
+  # keeps the track id column in any case. They are called with :: to avoid
+  # attaching dplyr, which would mask base functions.
   current <- reactive({
-    result <- data[, setdiff(names(data), removedEvent())]
-    trackData <- mt_track_data(data)
-    trackData <- trackData[, setdiff(names(trackData), removedTrack()), drop = FALSE]
-    mt_set_track_data(x = result, data = trackData)
+    keptEvent <- setdiff(names(data), removedEvent())
+    keptTrack <- setdiff(names(mt_track_data(data)), removedTrack())
+    result <- dplyr::select(data, dplyr::all_of(keptEvent))
+    select_track_data(result, dplyr::all_of(keptTrack))
   })
 
   output$status <- renderText({
-    paste0("Output data: ", length(removedEvent()), " of ", length(eventAttrs),
-           " event attribute(s) and ", length(removedTrack()), " of ", length(trackAttrs),
-           " track attribute(s) removed.")
+    applied <- paste0("Output data: ", length(removedEvent()), " of ", length(eventAttrs),
+                      " event attribute(s) and ", length(removedTrack()), " of ", length(trackAttrs),
+                      " track attribute(s) removed.")
+    selectionApplied <- setequal(removedEvent(), setdiff(eventAttrs, selectedEvent())) &&
+      setequal(removedTrack(), setdiff(trackAttrs, selectedTrack()))
+    if (selectionApplied || !any(checkboxesReported())) {
+      # before the browser reported the checkboxes there is nothing the user
+      # could have changed, so the hint would be wrong
+      applied
+    } else {
+      paste(applied, "The current selection is not applied yet, click 'Store settings' to apply it.")
+    }
   })
 
-  ## --- stored settings (bookmark) --------------------------------------------
-  # "Store settings" bookmarks the checkbox inputs (the selected attributes) and
-  # the click count of "Apply", so that it is also stored whether the removal was
-  # applied. The select/unselect all links are excluded, they are not settings.
+  ## --- stored settings ("Store settings") ------------------------------------
+  # "Store settings" bookmarks the checkbox inputs, i.e. the selected attributes.
+  # The select/unselect all links are excluded, they are not settings.
   setBookmarkExclude(c("eventAll", "eventNone", "trackAll", "trackNone"))
+
+  # The App has no "Apply" button of its own: the removal is executed when the
+  # settings are stored. onBookmark() is called by shiny for that click, and the
+  # SDK writes the output whenever the returned reactive changes, so the reduced
+  # data are passed on right away, without the workflow having to be run again.
+  onBookmark(function(state) {
+    isolate({
+      logger.info("Settings stored, applying the selected attributes")
+      applyRemoval(selectedEvent(), selectedTrack())
+    })
+  })
+
+  # In the following runs of the workflow the stored selection is applied
+  # directly, so that automatic runs produce the output without any interaction.
   onRestore(function(state) {
-    restoredApplyValue <<- state$input$apply
-    if (isTRUE(state$input$apply > 0)) {
-      # "Apply" had been clicked when the settings were stored, so execute it
-      # right away: automated workflow runs produce the output without any click
-      logger.info("Restored stored settings, applying the stored selection")
-      applyRemoval(state$input$eventAttrs, state$input$trackAttrs)
-    } else {
-      logger.info("Restored stored settings, but 'Apply' had not been clicked: data are passed on unchanged")
+    stored <- names(state$input)
+    if (!any(c("eventAttrs", "trackAttrs") %in% stored)) {
+      # no selection to restore: after "Restore default settings", or when the
+      # SDK dropped stored settings that do not fit the current input data. The
+      # App then shows its default, all attributes ticked, and removes nothing.
+      logger.warn("No stored attribute selection was restored, all attributes are kept")
+      applyRemoval(eventAttrs, trackAttrs)
+      return()
     }
+    logger.info("Restored stored settings, applying the stored selection")
+    applyRemoval(if ("eventAttrs" %in% stored) state$input$eventAttrs else eventAttrs,
+                 if ("trackAttrs" %in% stored) state$input$trackAttrs else trackAttrs)
   })
 
   # data must be returned. Either the unmodified input data, or the modified data by the app
